@@ -62,16 +62,68 @@ int treadp(spdid_t spdid, td_t td, int *off, int *sz){
     return 0;
 }
 
-int twritep(spdid_t spdid, td_t td, int cbid, int sz){
+static int
+sqlite3_server_exec(char * zSql)
+{
+    int rc, ret;
+    sqlite3_stmt *stmt;
 
-    return 0;
+    // preparing sql
+    rc = sqlite3_prepare_v2(SQLITE_DB, zSql, -1, &stmt, NULL);
+    if (rc) {
+        printc("#SQLITE: SQL error: %d : %s\n", r, sqlite3_errmsg(db));
+        ERR_THROW(-EAGAIN, done);
+    }
+
+    while ((rc = sqlite3_step(stmt)) != SQLITE_DONE) {
+        switch(rc) {
+            case SQLITE_ROW:
+                // TODO: write data to torrent;
+            default:
+                printc("#SQLITE: SQL error: %d : %s\n", r, sqlite3_errmsg(db));
+                ERR_THROW(-EAGAIN, done);
+        }
+    }
+
+    // TODO: write delimiter to torrent??
+
+    // finalize the statement to release resources
+    sqlite3_finalize(stmt);
+
+    ret = SQLITE_OK;
+
+done:
+    return ret;
 }
 
-void trelease(spdid_t spdid, td_t tid){
+int
+twritep(spdid_t spdid, td_t td, int cbid, int sz)
+{
+    int ret = -1;
+    struct torrent *t;
+    struct as_conn *ac;
+    cbufp_t cb = cbid;
+
+    if (tor_isnull(td)) return -EINVAL;
+    LOCK();
+    t = tor_lookup(td);
+    if (!t) ERR_THROW(-EINVAL, done);
+    assert(t->data);
+    if (!(t->flags & TOR_WRITE)) ERR_THROW(-EACCES, done);
+
+    ret = sqlite3_server_exec((char*)t->data);
+done:
+    UNLOCK();
+    return ret;
+}
+
+
+void
+trelease(spdid_t spdid, td_t tid)
+{
 
     return;
 };
-
 
 int tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len){return -ENOTSUP;}
 int tread(spdid_t spdid, td_t td, int cbid, int sz){return -ENOTSUP;}
