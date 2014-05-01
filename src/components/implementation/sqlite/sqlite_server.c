@@ -16,7 +16,7 @@
 #include <cbuf.h>
 #include <evt.h>
 
-#include "sqlite3.h"
+#include <sqlite3.h>
 
 static long evt_sqlite = 0;
 static td_t TD_SQLITE = 0;
