@@ -13,6 +13,7 @@
 #include <cbuf.h>
 #include <evt.h>
 #include <torrent.h>
+#include <evt.h>
 
 //#define VERBOSE 1
 #ifdef VERBOSE
@@ -31,7 +32,9 @@ void cos_init(void)
     char *params2 = "foo/";
     char *params3 = "foo/bar";
     char *data1 = "1234567890", *data2 = "asdf;lkj", *data3 = "asdf;lkj1234567890";
-    unsigned int ret1, ret2;
+    char *query1 = "CREATE TABLE students(id INTEGER PRIMARY KEY, name TEXT);";
+    cbufp_t cb1;
+    int off,sz;
 
     int a = 0, b = 0, c = 0;
     c = treadp(cos_spd_id(), 0, &a, &b);
@@ -44,12 +47,20 @@ void cos_init(void)
     evt2 = evt_split(cos_spd_id(), 0, 0);
     assert(evt1 > 0 && evt2 > 0);
 
-    t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL, evt1);
+    t1 = tsplit(cos_spd_id(), td_root, query1, strlen(query1), TOR_ALL, evt1);
     if (t1 < 1) {
         printc("UNIT TEST FAILED: split failed %d\n", t1);
         return;
     }
-    trelease(cos_spd_id(), t1);
+
+    // ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
+
+    cb1 = treadp(cos_spd_id(), t1, &off, &sz);
+
+    // evt_wait(cos_spd_id(), evt1);
+    evt_wait(cos_spd_id(), evt1);
+
+    // trelease(cos_spd_id(), t1);
     printc("UNIT TEST PASSED: split->release\n");
 
     // t1 = tsplit(cos_spd_id(), td_root, params2, strlen(params2), TOR_ALL, evt1);
