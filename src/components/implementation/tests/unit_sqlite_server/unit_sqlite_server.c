@@ -14,6 +14,7 @@
 #include <evt.h>
 #include <torrent.h>
 #include <evt.h>
+#include <unistd.h>
 
 //#define VERBOSE 1
 #ifdef VERBOSE
@@ -36,32 +37,44 @@ void cos_init(void)
     cbufp_t cb1;
     int off,sz;
 
-    int a = 0, b = 0, c = 0;
-    c = treadp(cos_spd_id(), 0, &a, &b);
+    printc("#SQLITE: UNIT TEST Unit tests for torrents...\n");
 
-    printc("UNIT TEST Unit tests for torrents...\n");
+    // int a = 0, b = 0, c = 0;
+    // c = treadp(cos_spd_id(), 0, &a, &b);
 
-    printc("%d %d %d\n", a, b, c);
+    // printc("#SQLITE: UNIT TEST Unit tests for torrents...\n");
+
+    // printc("%d %d %d\n", a, b, c);
 
     evt1 = evt_split(cos_spd_id(), 0, 0);
     evt2 = evt_split(cos_spd_id(), 0, 0);
     assert(evt1 > 0 && evt2 > 0);
 
+    printc("\n\n\n\tSQLITE: Debugging... Calling tsplit\n\n\n");
     t1 = tsplit(cos_spd_id(), td_root, query1, strlen(query1), TOR_ALL, evt1);
     if (t1 < 1) {
-        printc("UNIT TEST FAILED: split failed %d\n", t1);
+        printc("#SQLITE: UNIT TEST FAILED: split failed %d\n", t1);
         return;
     }
+    printc("\n\n\n\tSQLITE: Debugging... Returning from tsplit\n\n\n");
 
     // ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
 
+    printc("\n\n\n\tSQLITE: Debugging... Calling treadp\n\n\n");
     cb1 = treadp(cos_spd_id(), t1, &off, &sz);
+    printc("\n\n\n\tSQLITE: Debugging... Returning from tread\n\n\n");
+
+    printc("\n\n\n\tSQLITE: Debugging... sleeping ...\n\n\n");
+    // sleep(1);
+    printc("\n\n\n\tSQLITE: Debugging... waking ...\n\n\n");
 
     // evt_wait(cos_spd_id(), evt1);
-    evt_wait(cos_spd_id(), evt1);
+    // evt_wait(cos_spd_id(), evt1);
 
-    // trelease(cos_spd_id(), t1);
-    printc("UNIT TEST PASSED: split->release\n");
+    printc("#SQLITE: Releasing the torrent\n");
+    trelease(cos_spd_id(), t1);
+
+    // printc("UNIT TEST PASSED: split->release\n");
 
     // t1 = tsplit(cos_spd_id(), td_root, params2, strlen(params2), TOR_ALL, evt1);
     // if (t1 < 1) {
