@@ -8,43 +8,18 @@
 #include <cos_component.h>
 #include <print.h>
 #include <sched.h>
-#include <cbuf.h>
-#include <evt.h>
-#include <torrent.h>
-// #include <stdio.h>
 #include <string.h>
 #include <sqlite3.h>
-
-
-/******** VFS TRACE STUFF ***************/
-
-extern int vfstrace_register(
-   const char *zTraceName,           /* Name of the newly constructed VFS */
-   const char *zOldVfsName,          /* Name of the underlying VFS */
-   int (*xOut)(const char*,void*),   /* Output routine.  ex: fputs */
-   void *pOutArg,                    /* 2nd argument to xOut.  ex: stderr */
-   int makeDefault                   /* True to make the new VFS the default */
-);
-int traceOutput(const char *zMessage, void *pAppData) {
-    printc("SQLITE_CALL: ");
-    printc(zMessage);
-    printc("\n");
-
-    return 0;
-}
-
-/******** /VFS TRACE STUFF ***************/
-
 
 #define printf printc
 
 #define N_NAMES 2
 
-const char * COS_VFS_NAME = "cos";
-
 char CREATE_STMT[] = "CREATE TABLE students(id INTEGER PRIMARY KEY, name TEXT);";
 char INSERT_STMT[] = "INSERT INTO students(id, name) values(NULL, ?);";
 char SELECT_STMT[] = "SELECT id, name FROM students;";
+char SELECT_RANDOM_STMT[] = "SELECT RANDOM();";
+char SELECT_DATETIME_STMT[] = "SELECT DATETIME();";
 
 char * names[N_NAMES] = {"Lucas Sa", "Ney Mello"};
 
@@ -66,16 +41,9 @@ void cos_init(void) {
     char * errmsg;
     int r, i;
 
-    vfstrace_register("VFSTRACE", NULL, traceOutput, NULL, 1);
+    printf("#SQLITE spd: %ld\n", cos_spd_id());
 
-    if (!sqlite3_vfs_find("VFSTRACE")) {
-        printf("#SQLITE: VFS NOT FOUND");
-        return;
-    }
-
-    printf("#SQLITE pid %ld\n", cos_spd_id());
-
-    r = sqlite3_open_v2(":memory:", &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_PRIVATECACHE, "VFSTRACE");
+    r = sqlite3_open_v2(":memory:", &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_PRIVATECACHE, "cos");
 
     if (r) {
         printf("#SQLITE: Can't open database (%d): %s\n", r, sqlite3_errmsg(db));
@@ -132,8 +100,23 @@ void cos_init(void) {
     sqlite3_finalize(stmt);
 
     // select values
-    // r = sqlite3_exec(db, "SELECT RANDOM();", data_handler, (void*)SELECT_STMT, &errmsg);
     r = sqlite3_exec(db, SELECT_STMT, data_handler, (void*)SELECT_STMT, &errmsg);
+    if (r) {
+        printf("#SQLITE: SQL error: %s\n", errmsg);
+        sqlite3_free(errmsg);
+        return;
+    }
+
+    // select datetime() to test time stuff
+    r = sqlite3_exec(db, SELECT_DATETIME_STMT, data_handler, (void*)SELECT_DATETIME_STMT, &errmsg);
+    if (r) {
+        printf("#SQLITE: SQL error: %s\n", errmsg);
+        sqlite3_free(errmsg);
+        return;
+    }
+
+    // select random() to rest randomness
+    r = sqlite3_exec(db, SELECT_RANDOM_STMT, data_handler, (void*)SELECT_RANDOM_STMT, &errmsg);
     if (r) {
         printf("#SQLITE: SQL error: %s\n", errmsg);
         sqlite3_free(errmsg);
