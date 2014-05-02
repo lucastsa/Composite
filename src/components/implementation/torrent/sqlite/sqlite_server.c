@@ -33,14 +33,6 @@ struct sqlite_metadata{
 
 struct fsobj root;
 
-int traceOutput(const char *zMessage, void *pAppData) {
-    printc("SQLITE_CALL: ");
-    printc(zMessage);
-    printc("\n");
-
-    return 0;
-}
-
 void
 cos_init(void)
 {
@@ -56,11 +48,8 @@ cos_init(void)
     root_torrent.data = &root;
     root.flags = TOR_READ | TOR_SPLIT;
 
-    //vfstrace for SQLite
-    vfstrace_register("VFSTRACE", NULL, traceOutput, NULL, 1);
-
     printc("#SQLITE: Creating the database\n");
-    rc = sqlite3_open_v2(":memory:", &SQLITE_DB, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_PRIVATECACHE, "VFSTRACE");
+    rc = sqlite3_open_v2(":memory:", &SQLITE_DB, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_PRIVATECACHE, NULL);
     if (rc) {
         printc("#SQLITE: SQL error: Can't open database (%d): %s\n", rc, sqlite3_errmsg(SQLITE_DB));
         sqlite3_close(SQLITE_DB);
@@ -79,8 +68,9 @@ tsplit(spdid_t spdid, td_t tid, char *param, int len, tor_flags_t tflags, long e
     int rc, ret;
     sqlite3_stmt *stmt;
     struct torrent *nt, *t;
-    sqlite_metadata *smetada = malloc(sizeof(struct sqlite_metadata));
+    struct sqlite_metadata *smetada = malloc(sizeof(struct sqlite_metadata));
     cbufp_t ncb;
+    void *b;
 
     printc("SQLITE DEBUG: tid: %p\n",tid);
     t = tor_lookup(tid);
@@ -113,7 +103,7 @@ done:
     return ret;
 }
 
-int tread(spdid_t spdid, td_t td, int *off, int *sz){
+int treadp(spdid_t spdid, td_t td, int *off, int *sz){
     printc("#SQLITE: Treading ...\n");
 
     cbufp_t ret;
@@ -121,12 +111,14 @@ int tread(spdid_t spdid, td_t td, int *off, int *sz){
     int rc;
     sqlite3_stmt *stmt;
     void *b;
+    struct sqlite_metadata *smetada;
 
     t = tor_lookup(td);
     if (!t) ERR_THROW(-EINVAL, done);
 
-    ret = t->data->cb; //Cbuf
-    stmt = t->data->value; //Data
+    smetada = t->data;
+    ret = smetada->cb; //Cbuf
+    stmt = smetada->value; //Data
 
     printc("#SQLITE: Executing the query %p \n", stmt);
     while ((rc = sqlite3_step(stmt)) != SQLITE_DONE) {
@@ -157,15 +149,18 @@ trelease(spdid_t spdid, td_t tid)
     printc("#SQLITE: Treleasing ...\n");
     struct torrent *t;
     int ret;
+    struct sqlite_metadata *smetada;
 
     t = tor_lookup(tid);
     if (!t) ERR_THROW(-EINVAL, done);
 
+    smetada = t->data;
+
     //Free the cbuf related to this torrent
-    cbuf_free(t->data->cb);
+    cbuf_free(smetada->cb);
 
     printc("#SQLITE: Finialize the statement obejct.\n");
-    sqlite3_finalize(t->data->value);
+    sqlite3_finalize(smetada->value);
 
 done:
     return;
