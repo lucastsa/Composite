@@ -759,7 +759,6 @@ static int vfstraceRandomness(sqlite3_vfs *pVfs, int nByte, char *zBufOut){
   vfstrace_info *pInfo = (vfstrace_info*)pVfs->pAppData;
   sqlite3_vfs *pRoot = pInfo->pRootVfs;
   vfstrace_printf(pInfo, "%s.xRandomness(%d)\n", pInfo->zVfsName, nByte);
-  return 0;
   return pRoot->xRandomness(pRoot, nByte, zBufOut);
 }
 
