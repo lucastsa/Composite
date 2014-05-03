@@ -18,18 +18,21 @@
 #include <cos_alloc.h>
 #include <cos_map.h>
 #include <fs.h>
+#include <stdio.h>
+#include <string.h>
 #include <sqlite3.h>
 
 static long evt_sqlite = 0;
 static td_t TD_SQLITE = 0;
 static sqlite3 *SQLITE_DB;
 
-static int MAX_SIZE = 1024;
+static int MAX_SIZE = 1024*2;
 
 struct sqlite_metadata{
     void *value;
     cbufp_t cb;
 };
+
 
 void
 cos_init(void)
@@ -47,7 +50,7 @@ cos_init(void)
         return;
     }
 
-	return;
+    return;
 }
 
 td_t
@@ -90,7 +93,7 @@ int treadp(spdid_t spdid, td_t td, int *off, int *sz){
     struct torrent *t;
     int rc;
     sqlite3_stmt *stmt;
-    void *bufdata;
+    char *bufdata;
     struct sqlite_metadata *smetada;
 
     t = tor_lookup(td);
@@ -102,26 +105,94 @@ int treadp(spdid_t spdid, td_t td, int *off, int *sz){
     stmt = smetada->value; //Data
 
     //Recovering the data from cbuf
-    bufdata = cbuf2buf(ret,MAX_SIZE);
+    bufdata = (char *)cbuf2buf(ret,MAX_SIZE);
     if (!bufdata) ERR_THROW(-EINVAL, done);
     *sz = MAX_SIZE;
 
-    //Looping in the results
-    while ((rc = sqlite3_step(stmt)) != SQLITE_DONE) {
-        switch(rc) {
-            case SQLITE_ROW:
-                //TODO: decide the structure that will be returned
-                // memcpy(bufdata,test,11) ;
-            default:
-                ERR_THROW(-EAGAIN, done);
+    rc = sqlite3_step(stmt);
+
+    // No results
+    if (rc == SQLITE_DONE) {
+        bufdata[0] = SQLITE_DONE;
+        *sz = 1;
+        goto done;
+    }
+    else if (rc == SQLITE_ROW) {
+        int i, column_count;
+        char * cur_column_name;
+        int cur_column_type;
+        void * cur_column_value;
+        int idx=1;
+
+        bufdata[0] = SQLITE_ROW;
+
+        /**
+        [RESULT_CODE:1] [COLUMN_COUNT:4+1] ( [COLUMN_TYPE:4+1][COLUMN_NAME_LENGTH:4+1][COLUMN_NAME:???+1] ...)
+        */
+
+        // column count in buffer
+        column_count = sqlite3_column_count(stmt);
+        snprintf(&bufdata[idx], sizeof(column_count) + 1, "%d", column_count);
+        idx += sizeof(column_count) + 1;
+
+        // for each column
+        for (i=0; i < column_count; i++) {
+            cur_column_type = sqlite3_column_type(stmt, i);
+
+            // column type
+            snprintf(&bufdata[idx], sizeof(cur_column_type) + 1, "%d", cur_column_type);
+            idx += sizeof(cur_column_type) + 1;
+
+            /*********************/
+            cur_column_name = sqlite3_column_name(stmt, i);
+
+            // column name length
+            snprintf(&bufdata[idx], sizeof(int) + 1, "%d", (int)strlen(cur_column_name));
+            idx += sizeof(int) + 1;
+
+            // column name value
+            strcpy(&bufdata[idx], cur_column_name);
+            idx += strlen(cur_column_name) + 1;
+
+            switch (cur_column_type) {
+                case SQLITE_INTEGER:
+                    snprintf(&bufdata[idx], sizeof(int) + 1, "%d", sqlite3_column_int(stmt, i));
+                    idx += sizeof(int) + 1;
+                    break;
+
+                case SQLITE_FLOAT:
+                    // TODO: CONVERT DOUBLE TO CHAR ARRAY (assume DOUBLE 64-bit)
+                    break;
+
+                case SQLITE_BLOB:
+                    snprintf(&bufdata[idx], sizeof(int) + 1, "%d", sqlite3_column_bytes(stmt, i));
+                    idx += sizeof(int) + 1;
+
+                    memcpy(&bufdata[idx], sqlite3_column_blob(stmt, i), sqlite3_column_bytes(stmt, i));
+                    idx += sqlite3_column_bytes(stmt, i);
+                    break;
+
+                case SQLITE_NULL:
+                    break;
+
+                case SQLITE_TEXT:
+                    snprintf(&bufdata[idx], sizeof(int) + 1, "%d", sqlite3_column_bytes(stmt, i));
+                    idx += sizeof(int) + 1;
+
+                    strcpy(&bufdata[idx], sqlite3_column_text(stmt, i));
+                    idx += sqlite3_column_bytes(stmt, i) + 1;
+            }
         }
 
-        //Triggering the event
-        evt_trigger(cos_spd_id(),t->evtid);
+        *sz = idx;
+        goto done;
     }
+    else ERR_THROW(-EINVAL, done);
 done:
+    evt_trigger(cos_spd_id(),t->evtid);
     return ret;
 }
+
 
 void
 trelease(spdid_t spdid, td_t tid)
@@ -151,5 +222,3 @@ int tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len){return -E
 int tread(spdid_t spdid, td_t td, int cbid, int sz){return -ENOTSUP;}
 int twrite(spdid_t spdid, td_t td, int cbid, int sz){return -ENOTSUP;}
 int twritep(spdid_t spdid, td_t td, int cbid, int sz) {return -ENOTSUP;}
-// int trmeta(spdid_t spdid, td_t td, const char *key, unsigned int klen, char *retval, unsigned int max_rval_len){return -ENOTSUP;}
-// int twmeta(spdid_t spdid, td_t td, const char *key, unsigned int klen, const char *val, unsigned int vlen){return -ENOTSUP;}
