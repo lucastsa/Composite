@@ -31,10 +31,6 @@
 #include <string.h>
 #include <time.h>       /* used for time */
 #include <unistd.h>     /* used for sleep */
-// #include <sys/types.h>
-// #include <sys/stat.h>
-// #include <sys/file.h>
-// #include <sys/param.h>
 #include <errno.h>
 
 /** Macros to supress explicitly not used parameters / variables */
@@ -334,24 +330,108 @@ extern int vfstrace_register(
 
 int traceOutput(const char *zMessage, void *pAppData) {
     printc("#SQLITE_CALL: ");
-    printc(zMessage);
+    printc((char *)zMessage);
     printc("\n");
 
     return 0;
 }
 
+void * cos_sqlite3_log(void* NotUsed, int rc, const char* msg) {
+  printc("SQLITE LOG: %d - %s\n", rc, msg);
+  return NULL;
+}
+
 #endif /* SQLITE_OS_COMPOSITE_TEST */
+
+static const sqlite3_mem_methods default_mem_methods;
+
+static void *cos_sqlite3MemMalloc(int nByte){
+#ifdef SQLITE_OS_COMPOSITE_TEST
+  printc("malloc %d bytes\n", nByte);
+#endif
+  return default_mem_methods.xMalloc(nByte);
+}
+
+static void cos_sqlite3MemFree(void *pPrior){
+#ifdef SQLITE_OS_COMPOSITE_TEST
+  printc("memfree %p\n", pPrior);
+#endif
+  return default_mem_methods.xFree(pPrior);
+}
+
+static int cos_sqlite3MemSize(void *pPrior){
+#ifdef SQLITE_OS_COMPOSITE_TEST
+  printc("memsize %p\n", pPrior);
+#endif
+  return default_mem_methods.xSize(pPrior);
+}
+
+static void *cos_sqlite3MemRealloc(void *pPrior, int nByte){
+#ifdef SQLITE_OS_COMPOSITE_TEST
+  printc("realloc %p with %d bytes\n", pPrior, nByte);
+#endif
+
+  int pPrior_size = default_mem_methods.xSize(pPrior);
+  void *pNew;
+
+  pNew = default_mem_methods.xMalloc(nByte);
+
+  if( pNew ){
+    memcpy(pNew, pPrior, (int)(nByte<pPrior_size ? nByte : pPrior_size));
+    default_mem_methods.xFree(pPrior);
+  }
+
+  return pNew;
+}
+
+static int cos_sqlite3MemRoundup(int n){
+  int x = default_mem_methods.xRoundup(n);
+#ifdef SQLITE_OS_COMPOSITE_TEST
+  printc("memroundup %d -> %d\n",n, x);
+#endif
+  return x;
+}
+
+static int cos_sqlite3MemInit(void *NotUsed){
+#ifdef SQLITE_OS_COMPOSITE_TEST
+  printc("cos mem init\n");
+#endif
+  return default_mem_methods.xInit(NotUsed);
+}
+
+static void cos_sqlite3MemShutdown(void *NotUsed){
+#ifdef SQLITE_OS_COMPOSITE_TEST
+  printc("cos mem shutdown\n");
+#endif
+  default_mem_methods.xShutdown(NotUsed);
+}
 
 /**
  * Initialize the operating system interface.
 */
 int sqlite3_os_init(void) {
-  // sqlite3_config(SQLITE_CONFIG_HEAP, pBuf, szBuf, mnReq);
+  /* declaring cos memory allocator */
+  static const sqlite3_mem_methods cos_mem_methods = {
+     cos_sqlite3MemMalloc,
+     cos_sqlite3MemFree,
+     cos_sqlite3MemRealloc,
+     cos_sqlite3MemSize,
+     cos_sqlite3MemRoundup,
+     cos_sqlite3MemInit,
+     cos_sqlite3MemShutdown,
+     0
+  };
+
+  /* changes memory allocation to use heap in a static allocated memory chunk */
+  sqlite3_config(SQLITE_CONFIG_GETMALLOC, &default_mem_methods);
+  sqlite3_config(SQLITE_CONFIG_MALLOC, &cos_mem_methods);
 
   /* register Composite's VFS as the default VFS */
   sqlite3_vfs_register(sqlite3_cos_sqlite3_vfs(), 1);
 
 #ifdef SQLITE_OS_COMPOSITE_TEST
+  sqlite3_config(SQLITE_CONFIG_LOG, cos_sqlite3_log, NULL);
+
   vfstrace_register("VFSTRACE", NULL, traceOutput, NULL, 1);
 
   if (!sqlite3_vfs_find("VFSTRACE")) return SQLITE_ERROR;
