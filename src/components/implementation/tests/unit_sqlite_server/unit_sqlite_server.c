@@ -36,6 +36,7 @@ void cos_init(void)
     char *query1 = "CREATE TABLE students(id INTEGER PRIMARY KEY, name TEXT);";
     cbufp_t cb1;
     int off,sz;
+    void *result;
 
     printc("#SQLITE: UNIT TEST Unit tests for torrents...\n");
 
@@ -47,8 +48,7 @@ void cos_init(void)
     // printc("%d %d %d\n", a, b, c);
 
     evt1 = evt_split(cos_spd_id(), 0, 0);
-    evt2 = evt_split(cos_spd_id(), 0, 0);
-    assert(evt1 > 0 && evt2 > 0);
+    assert(evt1 > 0);
 
     printc("\n\n\n\tSQLITE: Debugging... Calling tsplit\n\n\n");
     t1 = tsplit(cos_spd_id(), td_root, query1, strlen(query1), TOR_ALL, evt1);
@@ -56,13 +56,17 @@ void cos_init(void)
         printc("#SQLITE: UNIT TEST FAILED: split failed %d\n", t1);
         return;
     }
-    printc("\n\n\n\tSQLITE: Debugging... Returning from tsplit\n\n\n");
+    printc("\n\n\n\tSQLITE: Debugging... Returning from tsplit %d\n\n\n",t1);
 
     // ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
 
     printc("\n\n\n\tSQLITE: Debugging... Calling treadp\n\n\n");
     cb1 = treadp(cos_spd_id(), t1, &off, &sz);
     printc("\n\n\n\tSQLITE: Debugging... Returning from tread\n\n\n");
+
+    printc("#SQLITE: Reading the result -- Size: %d\n",sz);
+    result = cbuf2buf(cb1,sz);
+    printc("#SQLITE: Result is %s\n",result);
 
     printc("\n\n\n\tSQLITE: Debugging... sleeping ...\n\n\n");
     // sleep(1);
