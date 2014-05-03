@@ -31,8 +31,6 @@ struct sqlite_metadata{
     cbufp_t cb;
 };
 
-struct fsobj root;
-
 void
 cos_init(void)
 {
@@ -40,9 +38,6 @@ cos_init(void)
 
     //Tor init functions
     torlib_init();
-    fs_init_root(&root);
-    root_torrent.data = &root;
-    root.flags = TOR_READ | TOR_SPLIT;
 
     //Creating the database
     rc = sqlite3_open_v2(":memory:", &SQLITE_DB, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_PRIVATECACHE, NULL);
@@ -116,7 +111,7 @@ int treadp(spdid_t spdid, td_t td, int *off, int *sz){
         switch(rc) {
             case SQLITE_ROW:
                 //TODO: decide the structure that will be returned
-                memcpy(bufdata,test,11) ;
+                // memcpy(bufdata,test,11) ;
             default:
                 ERR_THROW(-EAGAIN, done);
         }
@@ -142,7 +137,7 @@ trelease(spdid_t spdid, td_t tid)
     smetada = t->data;
 
     //Free the cbuf related to this torrent
-    cbuf_free(smetada->cb);
+    cbuf_free(cbuf2buf(smetada->cb,MAX_SIZE));
 
     free(smetada);
 
